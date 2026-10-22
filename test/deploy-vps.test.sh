@@ -23,6 +23,7 @@ cat > "$test_root/bin/npm" <<'MOCK'
 echo "npm $* in $PWD" >> "$CASE_BASE/events"
 if [[ "$PWD" != "$CASE_BASE/releases/previous" ]]; then
   [[ "$FAIL_STAGE" != dependencies || "$*" != ci* ]] || exit 1
+  [[ "$FAIL_STAGE" != database || "$*" != 'run db:check' ]] || exit 1
   [[ "$FAIL_STAGE" != migration || "$*" != 'run db:migrate' ]] || exit 1
   [[ "$FAIL_STAGE" != commands || "$*" != 'run deploy' ]] || exit 1
 fi
@@ -77,6 +78,8 @@ run_case() {
     [[ "$(cat "$base/state")" == active ]]
     [[ "$(grep -c '^stop$' "$base/events")" == 1 ]]
     grep -q '^npm run db:migrate' "$base/events"
+    grep -q '^npm run db:check' "$base/events"
+    [[ "$(grep -n '^npm run db:check' "$base/events" | cut -d: -f1)" -lt "$(grep -n '^stop$' "$base/events" | cut -d: -f1)" ]]
     grep -q '^npm run deploy' "$base/events"
     [[ "$(readlink -f "$base/current/.env")" == "$base/shared/.env" ]]
   else
@@ -87,7 +90,7 @@ run_case() {
     else
       [[ ! -L "$base/current" && "$(cat "$base/state")" == inactive ]]
     fi
-    if [[ "$stage" == dependencies || "$stage" == checksum ]]; then
+    if [[ "$stage" == dependencies || "$stage" == checksum || "$stage" == database ]]; then
       ! grep -q '^stop$' "$base/events"
     fi
     if [[ "$initial" == previous && ( "$stage" == startup || "$stage" == commands ) ]]; then
@@ -101,6 +104,7 @@ run_case success previous
 run_case success first
 run_case dependencies previous
 run_case checksum previous
+run_case database previous
 run_case migration previous
 run_case commands previous
 run_case startup previous

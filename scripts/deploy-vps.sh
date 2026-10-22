@@ -28,6 +28,8 @@ expected_node="v$(tr -d '\r\n' < .node-version)"
 [[ "$(node --version)" == "$expected_node" ]] || { echo "VPS needs Node.js $expected_node installed system-wide." >&2; exit 1; }
 npm ci --omit=dev --no-audit --no-fund
 ln -s "$base/shared/.env" "$release/.env"
+# Fail on invalid credentials before stopping the currently running bot.
+npm run db:check
 
 previous=$(readlink -f "$base/current" 2>/dev/null || true)
 if [[ -L "$base/current" ]]; then
