@@ -544,6 +544,8 @@ export function interactionHandler({ service, guildId }) {
       !interaction.isStringSelectMenu?.()
     )
       return;
+    let stage = "receive";
+    let command = interaction.commandName || "component";
     try {
       let actor;
       const dmAssignment = !interaction.inGuild()
@@ -558,6 +560,7 @@ export function interactionHandler({ service, guildId }) {
       // Modal phải mở ngay, không deferReply trước showModal.
       if (interaction.isChatInputCommand()) {
         const action = interaction.options.getSubcommand(false);
+        command = `/${interaction.commandName}${action ? ` ${action}` : ""}`;
         if (interaction.commandName === "absence" && action === "request") {
           await interaction.showModal(absenceModal());
           return;
@@ -607,17 +610,19 @@ export function interactionHandler({ service, guildId }) {
       const adminCommand =
         interaction.isChatInputCommand() &&
         ["setup", "settings"].includes(interaction.commandName);
-      // Chưa biết job có đang chờ nhận cho đến khi đọc DB: defer riêng trước để tránh lộ dữ liệu.
+      // These commands always return private results. List/view defer publicly;
+      // assigned-job details are sent in a separate ephemeral follow-up below.
       const protectedJobCommand =
         interaction.isChatInputCommand() &&
         interaction.commandName === "job" &&
-        ["create", "list", "view", "cancel", "reschedule", "reassign"].includes(
+        ["create", "cancel", "reassign"].includes(
           interaction.options.getSubcommand(false),
         );
       // Nút Mở đơn của phiên bản cũ vẫn mở riêng; luồng báo bận hiện tại trả lời công khai.
       const privateAbsence =
         !interaction.isChatInputCommand() &&
         /^absence:review:/.test(interaction.customId);
+      stage = "defer";
       await interaction.deferReply(
         adminCommand || protectedJobCommand || dmAssignment || privateAbsence
           ? { flags: MessageFlags.Ephemeral }
@@ -625,39 +630,43 @@ export function interactionHandler({ service, guildId }) {
       );
       if (dmAssignment)
         actor = await assignmentActor(interaction, service, guildId);
+      stage = "handle";
       const response = interaction.isChatInputCommand()
         ? await slash(interaction, actor, service)
         : await component(interaction, actor, service);
       const { privateReply = false, ...body } = response;
       const reply = { ...body, allowedMentions: { parse: [] } };
-      if (
-        interaction.ephemeral &&
-        !adminCommand &&
-        !dmAssignment &&
-        !privateReply
-      ) {
-        // Giữ phản hồi gốc riêng. Follow-up công khai có thể tham chiếu đến tin ẩn,
-        // làm người khác thấy "Message could not be loaded" dù không xóa tin.
-        // Đăng tin thường không có reply/reference và ghi rõ ai đã gọi lệnh.
+      if (privateReply && !interaction.ephemeral) {
+        // Never put assigned-job details into the public command response.
+        // Complete the public acknowledgement before sending a private follow-up.
+        stage = "reply";
         await interaction.editReply({
-          content: "⏳ Waiting...",
+          content: "📩 Kết quả được gửi riêng cho bạn vì có thông tin job đang chờ nhận.",
           embeds: [],
           components: [],
+          allowedMentions: { parse: [] },
         });
-        const command =
-          `/${interaction.commandName} ${interaction.options.getSubcommand(false) || ""}`.trim();
-        await interaction.channel.send({
+        stage = "private-reply";
+        await interaction.followUp({
           ...reply,
-          content: `<@${interaction.user.id}> used \`${command}\`.${reply.content ? `\n${reply.content}` : ""}`,
+          flags: MessageFlags.Ephemeral,
         });
-      } else await interaction.editReply(reply);
+      } else {
+        stage = "reply";
+        await interaction.editReply(reply);
+      }
     } catch (error) {
+      const permissionError = [50001, 50013].includes(Number(error.code));
       const content =
         error instanceof UserError
           ? error.message
+          : permissionError
+            ? `Bot ${Number(error.code) === 50001 ? "không truy cập được channel này" : "thiếu quyền thực hiện thao tác trong channel này"} (mã ${error.code}). Nhờ quản trị viên cấp View Channel, Send Messages và Embed Links cho chính bot tại channel gọi lệnh và channel báo cáo. Nếu vừa thay đổi job, hãy kiểm tra trạng thái trước khi thử lại.`
           : "Có lỗi khi xử lý. Kiểm tra trạng thái bằng lệnh xem danh sách trước khi thử lại; quản trị viên có thể xem log.";
       if (!(error instanceof UserError))
-        console.error(`Lỗi interaction (${error.code || error.name}).`);
+        console.error(
+          `Lỗi interaction (${error.code || error.name}). command=${command} guild=${interaction.guildId || guildId} channel=${interaction.channelId || "DM"} stage=${stage}`,
+        );
       try {
         const response = {
           content: `${error instanceof UserError ? "⚠️" : "❌"} ${safe(content, 1900)}`,

@@ -120,6 +120,7 @@ export async function deliverNotifications(pool, client, now = new Date()) {
     [now],
   );
   for (const message of messages) {
+    let targetId = message.target_id;
     try {
       const payload = decodePayload(message.payload);
       if (payload.kind === "absence" && payload.impacted) {
@@ -149,9 +150,8 @@ export async function deliverNotifications(pool, client, now = new Date()) {
           const pendingAbsence =
             ["absence", "absence_reminder"].includes(payload.kind) &&
             payload.absence.status === "pending";
-          const channel = await client.channels.fetch(
-            settings.report_channel_id,
-          );
+          targetId = settings.report_channel_id;
+          const channel = await client.channels.fetch(targetId);
           if (
             !channel?.isTextBased() ||
             channel.guildId !== message.guild_id ||
@@ -210,7 +210,12 @@ export async function deliverNotifications(pool, client, now = new Date()) {
           );
         }
       });
-      console.error(`Gửi thông báo #${message.id} thất bại (${code}).`);
+      console.error(
+        `Gửi thông báo #${message.id} thất bại (${code}). guild=${message.guild_id} ${message.destination}=${targetId}` +
+        (message.destination === "channel" && [50001, 50013].includes(Number(error.code))
+          ? " Kiểm tra quyền View Channel, Send Messages và Embed Links của bot tại channel này. Sẽ thử gửi lại."
+          : ""),
+      );
     }
   }
 }

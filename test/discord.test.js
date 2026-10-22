@@ -415,29 +415,15 @@ test("Lệnh thành viên và Lead trả lời công khai, vẫn chặn mention 
   ]) {
     const interaction = fakeInteraction({ commandName, action });
     await interactionHandler({ service, guildId: "1" })(interaction);
-    if (commandName === "job") {
-      assert.deepEqual(
-        interaction.calls.map((call) => call.method),
-        ["deferReply", "editReply", "channel.send"],
-      );
-      assert.match(
-        interaction.calls[2].options.content,
-        /<@3> used `\/job list`/,
-      );
-      assert.deepEqual(interaction.calls[2].options.allowedMentions, {
-        parse: [],
-      });
-    } else {
-      assert.deepEqual(
-        interaction.calls.map((call) => call.method),
-        ["deferReply", "editReply"],
-        commandName,
-      );
-      assert.equal(interaction.ephemeral, false, commandName);
-      assert.deepEqual(interaction.calls[1].options.allowedMentions, {
-        parse: [],
-      });
-    }
+    assert.deepEqual(
+      interaction.calls.map((call) => call.method),
+      ["deferReply", "editReply"],
+      commandName,
+    );
+    assert.equal(interaction.ephemeral, false, commandName);
+    assert.deepEqual(interaction.calls[1].options.allowedMentions, {
+      parse: [],
+    });
   }
 });
 
@@ -574,13 +560,16 @@ test("Job chờ nhận chỉ hiện riêng; chỉ người được giao thấy 
       }),
     };
     await interactionHandler({ service, guildId: "1" })(interaction);
-    assert.equal(interaction.ephemeral, true);
+    assert.equal(interaction.ephemeral, false);
     assert.deepEqual(
       interaction.calls.map((call) => call.method),
-      ["deferReply", "editReply"],
+      ["deferReply", "editReply", "followUp"],
     );
+    assert.deepEqual(interaction.calls[1].options.embeds, []);
+    assert.deepEqual(interaction.calls[1].options.components, []);
+    assert.equal(interaction.calls[2].options.flags, MessageFlags.Ephemeral);
     assert.equal(
-      interaction.calls[1].options.components.length,
+      interaction.calls[2].options.components.length,
       assignee === "3" ? 1 : 0,
     );
   }
@@ -594,8 +583,10 @@ test("Danh sách có job chờ nhận giữ riêng, job đã nhận vẫn xem c�
   })(list);
   assert.deepEqual(
     list.calls.map((call) => call.method),
-    ["deferReply", "editReply"],
+    ["deferReply", "editReply", "followUp"],
   );
+  assert.deepEqual(list.calls[1].options.embeds, []);
+  assert.equal(list.calls[2].options.flags, MessageFlags.Ephemeral);
   const view = fakeInteraction({ commandName: "job", action: "view" });
   await interactionHandler({
     guildId: "1",
@@ -608,11 +599,82 @@ test("Danh sách có job chờ nhận giữ riêng, job đã nhận vẫn xem c�
   })(view);
   assert.deepEqual(
     view.calls.map((call) => call.method),
-    ["deferReply", "editReply", "channel.send"],
+    ["deferReply", "editReply"],
   );
-  assert.match(view.calls[2].options.content, /<@3> used `\/job view`/);
-  assert.equal(view.calls[2].options.reply, undefined);
-  assert.equal(view.calls[2].options.messageReference, undefined);
+  assert.equal(view.ephemeral, false);
+  assert.equal(view.calls[1].options.reply, undefined);
+  assert.equal(view.calls[1].options.messageReference, undefined);
+});
+
+test("Job list/view báo rõ quyền bot khi Discord trả 50001 hoặc 50013", async (t) => {
+  const logs = t.mock.method(console, "error", () => {});
+  for (const code of [50001, 50013]) {
+    for (const action of ["list", "view"]) {
+      const interaction = fakeInteraction({ commandName: "job", action });
+      const editReply = interaction.editReply;
+      interaction.editReply = async function (options) {
+        if (options.embeds?.length) {
+          throw Object.assign(new Error("Discord error"), { code });
+        }
+        return editReply.call(this, options);
+      };
+      const service = {
+        listJobs: async () => ({ jobs: [], page: 1 }),
+        viewJob: async () => ({
+          job: { ...job, status: "in_progress" }, updates: [],
+        }),
+      };
+      await interactionHandler({ service, guildId: "1" })(interaction);
+      const response = interaction.calls.at(-1).options;
+      assert.ok(response.content.includes(String(code)));
+      assert.match(response.content, /View Channel, Send Messages và Embed Links/);
+      assert.deepEqual(response.embeds, []);
+      assert.deepEqual(response.components, []);
+      assert.equal(response.flags, MessageFlags.Ephemeral);
+      const log = logs.mock.calls.at(-1).arguments[0];
+      assert.ok(log.includes(`command=/job ${action}`));
+      assert.match(log, /channel=2 stage=reply/);
+    }
+  }
+});
+
+test("Các lệnh job list/view/decline/accept/update/submit đi hết luồng phản hồi", async () => {
+  const ownedJob = { ...job, assignee_id: "3", status: "in_progress" };
+  const mutations = [];
+  const service = {
+    listJobs: async () => ({ jobs: [ownedJob], page: 1 }),
+    viewJob: async () => ({ job: ownedJob, updates: [] }),
+    mutateJob: async (actor, id, action, input) => {
+      assert.equal(actor.userId, "3");
+      assert.equal(id, 1);
+      mutations.push({ action, input });
+      return { ...ownedJob, status: action === "decline" ? "declined" : action === "submit" ? "submitted" : "in_progress" };
+    },
+  };
+  for (const action of ["list", "view", "decline", "accept", "update", "submit"]) {
+    const interaction = fakeInteraction({ commandName: "job", action });
+    interaction.channel.send = () => assert.fail("Phải trả lời trực tiếp vào lệnh");
+    interaction.options.getString = (name) => name === "note" ? "Lý do từ chối" : null;
+    await interactionHandler({ service, guildId: "1" })(interaction);
+    if (["update", "submit"].includes(action)) {
+      assert.deepEqual(interaction.calls.map((call) => call.method), ["showModal"]);
+      const modal = fakeInteraction({
+        kind: "modal", customId: `job:${action}:1`,
+        inputs: { note: "Kết quả công việc", progress: "40", status: "doing", checkin: "" },
+      });
+      modal.channel.send = () => assert.fail("Phải trả lời trực tiếp vào form");
+      await interactionHandler({ service, guildId: "1" })(modal);
+      assert.ok(modal.calls.at(-1).options.embeds[0]);
+    } else {
+      const result = interaction.calls.at(-1);
+      assert.equal(result.method, "editReply");
+      assert.ok(result.options.embeds[0]);
+    }
+  }
+  assert.deepEqual(mutations.map((entry) => entry.action), ["decline", "accept", "update", "submit"]);
+  const update = mutations.find((entry) => entry.action === "update").input;
+  assert.equal(update.progress, 40);
+  assert.equal(update.status, "in_progress");
 });
 
 test("Hủy job phải mở xác nhận riêng, chỉ hủy sau khi Lead bấm xác nhận", async () => {
