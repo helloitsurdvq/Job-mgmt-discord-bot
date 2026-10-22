@@ -89,7 +89,6 @@ test("Chỉ Lead được duyệt, kể cả job của mình theo quy tắc hi�
     () => authorizeJobAction(submitted, member, settings, "approve"),
     UserError,
   );
-  // Chặn tự duyệt job đang được tắt trong domain.js; test giữ nguyên quy tắc đó.
   assert.doesNotThrow(
     () =>
       authorizeJobAction(

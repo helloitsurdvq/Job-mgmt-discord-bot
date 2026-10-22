@@ -22,7 +22,7 @@ test("Bỏ thông báo xin nghỉ chờ duyệt còn trong outbox khi đơn đã
   }
 });
 
-test("Đơn chờ duyệt được gửi vào channel hiện tại, không cần channel riêng hoặc quyền tạo channel", async () => {
+test("Đơn chờ duyệt được gửi vào channel hiện tại", async () => {
   const now = new Date("2026-10-21T08:00:00Z");
   const sent = [];
   const client = {
@@ -91,7 +91,7 @@ test("Đơn chờ duyệt được gửi vào channel hiện tại, không cần
   assert.deepEqual(sent[0].allowedMentions.roles, ["4"]);
 });
 
-test("Worker không tạo lại lời nhắc Mở đơn khi chạy định kỳ", async () => {
+test("Worker không tạo lại lời nhắc mở đơn khi chạy định kỳ", async () => {
   const pool = {
     execute: async (sql) => {
       if (sql === "SELECT * FROM guild_settings")

@@ -10,7 +10,7 @@ const actor = {
 };
 const now = new Date("2026-10-21T07:32:40Z");
 
-test("Service chặn thời gian quá khứ, bằng hiện tại và kết thúc không sau bắt đầu trước khi chạm DB", async () => {
+test("Không được đặt thời gian trong quá khứ", async () => {
   let connections = 0;
   const service = new JobService(
     {
@@ -38,7 +38,7 @@ test("Service chặn thời gian quá khứ, bằng hiện tại và kết thúc
   assert.equal(connections, 0);
 });
 
-test("Nút hiển thị công khai nhưng service chỉ cho Lead/admin duyệt hoặc từ chối đơn", async () => {
+test("Đơn chỉ cho Lead/admin duyệt hoặc từ chối đơn", async () => {
   for (const role of ["member", "lead", "admin"]) {
     for (const action of ["approve", "reject"]) {
       let updates = 0;

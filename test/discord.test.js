@@ -51,7 +51,7 @@ function embedSize(embed) {
   );
 }
 
-test("Mọi slash command serialize được và required option đứng trước optional", () => {
+test("Mọi command serialize được và required option đứng trước optional", () => {
   const check = (options) => {
     let optionalSeen = false;
     for (const option of options || []) {
@@ -225,7 +225,7 @@ test("Ngày sai định dạng hoặc không tồn tại bị từ chối riêng
   }
 });
 
-test("Nút, menu và form lịch cũ hướng dẫn chạy lại lệnh, không cập nhật lịch lỗi", async () => {
+test("Nút, menu và form lịch cũ hướng dẫn chạy lại lệnh, không update lịch lỗi", async () => {
   for (const kind of ["button", "select", "modal"]) {
     const interaction = fakeInteraction({
       kind,
@@ -709,7 +709,7 @@ test("Đơn gửi channel hiện tại có nội dung và hai nút duyệt, khô
   }
 });
 
-test("Kết quả báo bận công khai gồm lý do và phản hồi, bỏ các nút duyệt sau xử lý", () => {
+test("Kết quả báo bận công khai gồm lý do và phản hồi", () => {
   for (const [status, action] of [
     ["approved", "approve"],
     ["rejected", "reject"],
@@ -735,7 +735,7 @@ test("Kết quả báo bận công khai gồm lý do và phản hồi, bỏ các
   }
 });
 
-test("Nút Mở đơn cũ vẫn kiểm tra quyền và mở phản hồi riêng", async () => {
+test("Mở đơn cũ vẫn kiểm tra quyền và mở phản hồi riêng", async () => {
   const interaction = fakeInteraction({
     kind: "button",
     customId: "absence:review:1",
@@ -827,7 +827,7 @@ test("Danh sách báo bận trả lời công khai cả khi có đơn chờ duy�
   }
 });
 
-test("Thao tác duyệt, từ chối và hủy báo bận trả lời công khai như trước", async () => {
+test("Thao tác duyệt, từ chối và hủy báo bận trả lời công khai", async () => {
   const service = {
     mutateAbsence: async () => ({ ...privateAbsence, status: "approved" }),
   };

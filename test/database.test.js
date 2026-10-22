@@ -20,7 +20,7 @@ test("Transaction rollback và release connection khi có lỗi giữa chừng",
   assert.deepEqual(calls, ["begin", "rollback", "release"]);
 });
 
-test("Khóa worker riêng cho database và không vượt giới hạn tên khóa MySQL", () => {
+test("Khóa worker riêng cho db và không vượt giới hạn tên khóa MySQL", () => {
   assert.notEqual(lockName("a", "worker"), lockName("b", "worker"));
   assert.ok(lockName("a".repeat(100), "worker").length <= 64);
 });

@@ -90,7 +90,7 @@ jobs:
 
       - name: Run MySQL integration tests
         env:
-          MYSQL_PORT: 3306
+          MYSQL_PORT: ${{ job.services.mysql.ports['3306'] }}
         run: npm run test:integration
 
   package:

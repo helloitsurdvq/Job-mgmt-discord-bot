@@ -8,10 +8,9 @@ import { UserError } from "../../src/domain.js";
 import { enqueueReminders, deliverNotifications } from "../../src/worker.js";
 import { enqueue, decodePayload } from "../../src/outbox.js";
 
-// Chỉ chạy với database test do bạn chỉ định rõ, không dùng database thật.
 const testDatabase = process.env.TEST_MYSQL_DATABASE;
 test(
-  "MySQL: luồng nghiệp vụ, transaction, cạnh tranh và gửi thông báo",
+  "MySQL integration test",
   {
     skip: !testDatabase
       ? "Đặt TEST_MYSQL_DATABASE có hậu tố _test để chạy với MySQL thật."
@@ -75,7 +74,7 @@ test(
     };
     try {
       await migrate(pool, config.database);
-      await migrate(pool, config.database); // Chạy lại migration không được phá dữ liệu.
+      await migrate(pool, config.database); 
       await service.configure(admin, {
         leadRoleId: roleId,
         reportChannelId,
@@ -87,7 +86,7 @@ test(
       );
 
       await t.test(
-        "Phân quyền tạo job, channel và quyền xem dữ liệu cá nhân",
+        "Tạo job, channel và quyền xem dữ liệu",
         async () => {
           await assert.rejects(
             service.createJob(member, {
