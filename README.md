@@ -226,22 +226,12 @@ Queue gửi theo cơ chế **at least once**: tin có thể bị lặp nếu bot
 
 <!-- Bot chỉ gửi thông báo khi đang chạy. Sau restart, worker kiểm tra trạng thái hiện tại, không gửi bù từng ngày bị tắt. Khi vận hành thường xuyên, dùng máy/VPS luôn bật, cơ chế tự khởi động lại và sao lưu MySQL. Chạy một tiến trình cho mỗi bộ `.env`; worker có khóa MySQL chống gửi hàng đợi đồng thời. -->
 
-<!-- ## GitHub Actions
-
-Workflow trong [.github/workflows/ci.yml](.github/workflows/ci.yml) tự chạy khi push, pull request hoặc chọn **Run workflow** trên GitHub:
-
-- Kiểm tra cú pháp và unit test với Node.js 24.22.1 (đọc từ `.node-version`) trên Ubuntu/Windows.
-- Chạy integration test với MySQL 8.4 và database test riêng.
-- Khi tất cả test đạt, tạo gói tải về cho push và chạy thủ công; pull request chỉ chạy kiểm tra.
-
-Không cần bot token hoặc GitHub Secrets. Tải gói tại **Actions → CI and package → chọn run thành công → Artifacts**. Gói không chứa `.env`, `node_modules` hoặc dữ liệu MySQL, được lưu 14 ngày. Bản này chỉ kiểm tra và đóng gói, chưa tự triển khai bot. -->
-
-Xem [hướng dẫn GitHub Actions](.github/README.md) để cấu hình và dùng gói tải về.
-
 ## Project structure
 
 ```text
 database/migrations/     SQL tạo bảng và cập nhật schema
+.github/                Workflow CI/CD và hướng dẫn cấu hình VPS
+deploy/                 Service systemd để chạy bot trên Linux
 src/
   config.js              Cấu hình Discord và MySQL
   database.js            Connection pool, transaction và migration

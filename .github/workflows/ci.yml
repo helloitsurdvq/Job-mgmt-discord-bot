@@ -9,7 +9,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Do not interrupt a production deployment while it is changing releases.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   unit:
@@ -38,6 +39,12 @@ jobs:
 
       - name: Check JavaScript syntax
         run: npm run check
+
+      - name: Validate deployment script
+        if: runner.os == 'Linux'
+        run: |
+          bash -n scripts/deploy-vps.sh
+          bash test/deploy-vps.test.sh
 
       - name: Run unit tests
         run: npm test
@@ -111,7 +118,7 @@ jobs:
         run: |
           mkdir -p dist
           tar -czf "dist/eishin-flash-${GITHUB_SHA}.tar.gz" \
-            src database/migrations scripts test .github \
+            src database/migrations scripts test deploy .github \
             package.json package-lock.json README.md .node-version .env.example docker-compose.yml
           (cd dist && sha256sum *.tar.gz > SHA256SUMS)
 
@@ -122,3 +129,77 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 14
+
+  deploy:
+    name: Deploy to host
+    needs: [unit, integration, package]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: eishin-flash-production
+      cancel-in-progress: false
+    env:
+      DEPLOY_PATH: /opt/eishin-flash
+      SSH_HOST: 36.50.27.122
+      SSH_USER: root
+      SSH_PORT: ${{ secrets.VPS_PORT || '22' }}
+
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download tested package
+        uses: actions/download-artifact@v8
+        with:
+          name: eishin-flash-${{ github.sha }}
+          path: dist
+
+      - name: Verify package checksum
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'SSH_HOST must be an IPv4 address or hostname.' >&2; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$SSH_PORT >= 1 && 10#$SSH_PORT <= 65535 )) || { echo 'VPS_PORT is invalid.' >&2; exit 1; }
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" ]] || { echo 'Missing VPS SSH secrets.' >&2; exit 1; }
+          install -d -m 700 "$RUNNER_TEMP/eishin-ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$RUNNER_TEMP/eishin-ssh/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/eishin-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/eishin-ssh/"*
+
+      - name: Upload and deploy release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$latest_sha" != "$GITHUB_SHA" ]]; then
+            echo 'Skipped deployment: main already has a newer commit.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          ssh_options=(-i "$RUNNER_TEMP/eishin-ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/eishin-ssh/known_hosts" -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
+          run_key="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          remote_dir="$DEPLOY_PATH/incoming/$run_key"
+          ssh "${ssh_options[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$remote_dir'"
+          scp "${ssh_options[@]}" -P "$SSH_PORT" \
+            "dist/eishin-flash-$GITHUB_SHA.tar.gz" dist/SHA256SUMS scripts/deploy-vps.sh \
+            "$SSH_USER@$SSH_HOST:$remote_dir/"
+          ssh "${ssh_options[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "bash '$remote_dir/deploy-vps.sh' '$DEPLOY_PATH' '$run_key' '$GITHUB_SHA'"
+          echo "Deployed commit $GITHUB_SHA to production." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary SSH credentials
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/eishin-ssh/key" "$RUNNER_TEMP/eishin-ssh/known_hosts"

@@ -7,4 +7,4 @@ dist/
 *.log
 .npm-cache/
 .mysql-test/
-docs
+/docs/*
