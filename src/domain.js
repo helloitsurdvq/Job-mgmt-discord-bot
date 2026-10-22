@@ -18,6 +18,15 @@ export function ensure(condition, message) {
   if (!condition) throw new UserError(message);
 }
 
+export const BOT_CONFIGURATION_ROLE = "You're going to Germany";
+
+export function authorizeBotConfiguration(actor) {
+  ensure(
+    actor.isAdmin || actor.roleNames?.includes(BOT_CONFIGURATION_ROLE),
+    `Chỉ quản trị viên hoặc thành viên có role "${BOT_CONFIGURATION_ROLE}" được cấu hình bot.`,
+  );
+}
+
 export function text(value, label, max, min = 1) {
   const result = typeof value === "string" ? value.trim() : "";
   ensure(

@@ -13,6 +13,8 @@ import {
   ensure,
   parseVietnamTime,
   positiveInteger,
+  authorizeBotConfiguration,
+  BOT_CONFIGURATION_ROLE,
 } from "./domain.js";
 import {
   jobDetail,
@@ -33,6 +35,10 @@ export function actorFrom(interaction, guildId) {
     "Hãy sử dụng bot trong server đã cấu hình.",
   );
   const roles = interaction.member.roles;
+  const roleIds = Array.isArray(roles) ? roles : [...roles.cache.keys()];
+  const roleCache = Array.isArray(roles)
+    ? interaction.guild?.roles?.cache
+    : roles.cache;
   return {
     guildId: interaction.guildId,
     channelId: interaction.channelId,
@@ -40,7 +46,8 @@ export function actorFrom(interaction, guildId) {
     isAdmin:
       interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
       false,
-    roleIds: Array.isArray(roles) ? roles : [...roles.cache.keys()],
+    roleIds,
+    roleNames: roleIds.map((id) => roleCache?.get(id)?.name).filter(Boolean),
   };
 }
 
@@ -243,8 +250,8 @@ const help = () => {
             ]),
           },
           {
-            name: "🛡️ QUẢN TRỊ VIÊN",
-            value: commandList([
+            name: "🛡️ CẤU HÌNH BOT",
+            value: `Dành cho quản trị viên hoặc role **${BOT_CONFIGURATION_ROLE}**.\n\n` + commandList([
               [
                 "/setup",
                 "Cấu hình role Lead, channel báo cáo và channel dùng lệnh.",
@@ -285,7 +292,7 @@ async function slash(interaction, actor, service) {
   const command = interaction.commandName;
   const action = options.getSubcommand(false);
   if (command === "setup") {
-    ensure(actor.isAdmin, "Chỉ quản trị viên được cấu hình bot.");
+    authorizeBotConfiguration(actor);
     const report = options.getChannel("report-channel", true);
     const channel = options.getChannel("command-channel", true);
     const role = options.getRole("lead-role", true);
@@ -307,6 +314,7 @@ async function slash(interaction, actor, service) {
     };
   }
   if (command === "settings") {
+    authorizeBotConfiguration(actor);
     if (action === "show") {
       const { settings, counts } = await service.deliveryStatus(actor);
       return {
@@ -316,7 +324,6 @@ async function slash(interaction, actor, service) {
           `⏳ Thông báo đang chờ: ${counts.pending} · 📭 DM thất bại: ${counts.failed}`,
       };
     }
-    ensure(actor.isAdmin, "Chỉ quản trị viên được cấu hình bot.");
     const channel = options.getChannel("channel", true);
     //if (action === 'channel-add') validateChannel(interaction, channel);
     await service.changeChannel(actor, channel.id, action === "channel-add");

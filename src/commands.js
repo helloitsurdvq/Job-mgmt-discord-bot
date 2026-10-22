@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   ChannelType,
-  PermissionFlagsBits,
 } from "discord.js";
 
 const id = (sub) =>
@@ -54,8 +53,10 @@ const month = (sub) =>
 export const commands = [
   new SlashCommandBuilder()
     .setName("setup")
-    .setDescription("Cấu hình bot cho server (quản trị viên)")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDescription("Cấu hình bot cho server (quản trị viên / role cấu hình bot)")
+    // Role names cannot be expressed in default Discord permission bits.
+    // Interaction and service authorization enforce the configuration role.
+    .setDefaultMemberPermissions(null)
     .addChannelOption((option) =>
       option
         .setName("report-channel")
@@ -79,7 +80,7 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("settings")
     .setDescription("Xem cấu hình và quản lý channel")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDefaultMemberPermissions(null)
     .addSubcommand((sub) =>
       sub
         .setName("show")

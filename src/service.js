@@ -10,6 +10,7 @@ import {
   isLead,
   authorizeJobAction,
   monthRange,
+  authorizeBotConfiguration,
 } from "./domain.js";
 
 // Service chứa quy tắc nghiệp vụ. Không import Discord cho dễ đọc và kiểm thử độc lập.
@@ -26,7 +27,7 @@ export class JobService {
     );
     ensure(
       settings,
-      "Server chưa được cấu hình. Quản trị viên hãy chạy /setup.",
+      "Server chưa được cấu hình. Người có quyền cấu hình bot hãy chạy /setup.",
     );
     const [channels] = await connection.execute(
       "SELECT channel_id FROM command_channels WHERE guild_id = ?",
@@ -67,7 +68,7 @@ export class JobService {
   }
 
   async configure(actor, { leadRoleId, reportChannelId, commandChannelId }) {
-    ensure(actor.isAdmin, "Chỉ quản trị viên được cấu hình bot.");
+    authorizeBotConfiguration(actor);
     [leadRoleId, reportChannelId, commandChannelId].forEach(discordId);
     return transaction(this.pool, async (connection) => {
       const now = this.clock();
@@ -95,7 +96,7 @@ export class JobService {
   }
 
   async changeChannel(actor, channelId, add) {
-    ensure(actor.isAdmin, "Chỉ quản trị viên được cấu hình bot.");
+    authorizeBotConfiguration(actor);
     discordId(channelId);
     return transaction(this.pool, async (connection) => {
       await this.settings(actor.guildId, connection);
@@ -623,7 +624,7 @@ export class JobService {
   }
 
   async deliveryStatus(actor) {
-    ensure(actor.isAdmin, "Chỉ quản trị viên được xem cấu hình.");
+    authorizeBotConfiguration(actor);
     const settings = await this.settings(actor.guildId);
     const [[counts]] = await this.pool.execute(
       `SELECT

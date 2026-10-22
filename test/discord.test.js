@@ -14,7 +14,7 @@ import {
   actorFrom,
   interactionHandler,
 } from "../src/interactions.js";
-import { UserError } from "../src/domain.js";
+import { UserError, BOT_CONFIGURATION_ROLE } from "../src/domain.js";
 
 const job = {
   id: 1,
@@ -143,6 +143,84 @@ test("Không nhận interaction từ DM hoặc server khác", () => {
     () => actorFrom({ inGuild: () => true, guildId: "2" }, "1"),
     UserError,
   );
+});
+
+test("Lệnh cấu hình không còn bị Discord giới hạn chỉ Administrator", () => {
+  for (const name of ["setup", "settings"]) {
+    const command = commands.find((entry) => entry.name === name).toJSON();
+    assert.equal(command.default_member_permissions, null);
+  }
+});
+
+test("Role cấu hình dùng setup và toàn bộ settings qua cả hai dạng member roles", async () => {
+  for (const cachedMember of [false, true]) {
+    for (const [commandName, action] of [
+      ["setup", null],
+      ["settings", "show"],
+      ["settings", "channel-add"],
+      ["settings", "channel-remove"],
+    ]) {
+      const interaction = fakeInteraction({ commandName, action });
+      const roles = new Map([["manager-role", { name: BOT_CONFIGURATION_ROLE }]]);
+      interaction.member.roles = cachedMember
+        ? { cache: roles }
+        : ["manager-role"];
+      interaction.guild = { roles: { cache: roles } };
+      interaction.options.getChannel = () => ({
+        id: "2",
+        permissionsFor: () => ({ has: () => true }),
+      });
+      interaction.options.getRole = () => ({ id: "4" });
+      let calls = 0;
+      const verifyActor = (actor) => {
+        calls++;
+        assert.equal(actor.isAdmin, false);
+        assert.deepEqual(actor.roleNames, [BOT_CONFIGURATION_ROLE]);
+      };
+      const service = {
+        configure: async (actor) => verifyActor(actor),
+        changeChannel: async (actor, channelId, add) => {
+          verifyActor(actor);
+          assert.equal(add, action === "channel-add");
+        },
+        deliveryStatus: async (actor) => {
+          verifyActor(actor);
+          return {
+            settings: { lead_role_id: "4", report_channel_id: "2", channels: [] },
+            counts: { pending: 0, failed: 0 },
+          };
+        },
+      };
+      await interactionHandler({ service, guildId: "1" })(interaction);
+      assert.equal(calls, 1, `${commandName} ${action}`);
+      assert.equal(interaction.ephemeral, true);
+      assert.deepEqual(interaction.calls.map((call) => call.method), [
+        "deferReply", "editReply",
+      ]);
+    }
+  }
+});
+
+test("Thành viên không giữ role cấu hình bị chặn trước khi gọi service", async () => {
+  for (const [commandName, action] of [
+    ["setup", null],
+    ["settings", "show"],
+    ["settings", "channel-add"],
+    ["settings", "channel-remove"],
+  ]) {
+    const interaction = fakeInteraction({ commandName, action });
+    // Having the role in the guild, or the same display name, does not grant membership.
+    interaction.guild = {
+      roles: { cache: new Map([["manager-role", { name: BOT_CONFIGURATION_ROLE }]]) },
+    };
+    interaction.user.username = BOT_CONFIGURATION_ROLE;
+    const deniedService = new Proxy({}, {
+      get: () => assert.fail("Không được gọi service khi không có quyền"),
+    });
+    await interactionHandler({ service: deniedService, guildId: "1" })(interaction);
+    assert.equal(interaction.ephemeral, true);
+    assert.ok(interaction.calls.at(-1).options.content.includes(BOT_CONFIGURATION_ROLE));
+  }
 });
 
 test("Lệnh xin nghỉ mở ngay form bắt đầu, kết thúc và lý do như trước", async () => {
@@ -387,6 +465,7 @@ test("Lệnh cấu hình của quản trị viên vẫn trả lời riêng", asy
     commandName: "settings",
     action: "show",
   });
+  interaction.memberPermissions = { has: () => true };
   const service = {
     deliveryStatus: async () => ({
       settings: { lead_role_id: "4", report_channel_id: "5", channels: ["2"] },
@@ -450,6 +529,7 @@ test("Lỗi của lệnh cấu hình giữ nguyên phản hồi riêng", async (
     commandName: "settings",
     action: "show",
   });
+  interaction.memberPermissions = { has: () => true };
   const service = {
     deliveryStatus: async () => {
       throw new UserError("Chỉ quản trị viên được xem cấu hình.");
