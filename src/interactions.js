@@ -655,7 +655,7 @@ export function interactionHandler({ service, guildId }) {
       const content =
         error instanceof UserError
           ? error.message
-          : "Có lỗi khi xử lý. Hãy kiểm tra trạng thái bằng lệnh xem danh sách trước khi thử lại; quản trị viên có thể xem log.";
+          : "Có lỗi khi xử lý. Kiểm tra trạng thái bằng lệnh xem danh sách trước khi thử lại; quản trị viên có thể xem log.";
       if (!(error instanceof UserError))
         console.error(`Lỗi interaction (${error.code || error.name}).`);
       try {
