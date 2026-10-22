@@ -1,0 +1,124 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check JavaScript syntax
+        run: npm run check
+
+      - name: Run unit tests
+        run: npm test
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Database riêng cho mỗi run
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_password
+          MYSQL_DATABASE: job_bot_test
+          MYSQL_USER: job_bot
+          MYSQL_PASSWORD: ci_password
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=ci_root_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=20s
+
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_USER: job_bot
+      MYSQL_PASSWORD: ci_password
+      MYSQL_DATABASE: job_bot_test
+      TEST_MYSQL_DATABASE: job_bot_test
+      MYSQL_SSL: 'false'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run MySQL integration tests
+        env:
+          MYSQL_PORT: 3306
+        run: npm run test:integration
+
+  package:
+    name: Create downloadable package
+    needs: [unit, integration]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Package source and create checksum
+        shell: bash
+        run: |
+          mkdir -p dist
+          tar -czf "dist/eishin-flash-${GITHUB_SHA}.tar.gz" \
+            src database/migrations scripts test .github \
+            package.json package-lock.json README.md .node-version .env.example docker-compose.yml
+          (cd dist && sha256sum *.tar.gz > SHA256SUMS)
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: eishin-flash-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

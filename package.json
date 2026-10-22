@@ -1,0 +1,24 @@
+{
+  "name": "job-mgmt-discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot Discord quản lý công việc, báo bận và báo cáo bằng MySQL",
+  "engines": {
+    "node": ">=24.22.1"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "node scripts/deploy-commands.js",
+    "db:migrate": "node scripts/migrate.js",
+    "check": "node scripts/check.js",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration/*.test.js"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0",
+    "dotenv": "17.4.2",
+    "mysql2": "3.24.6"
+  }
+}
