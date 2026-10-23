@@ -11,17 +11,14 @@ Bot quản lý Job, Deadline và KPI cho Discord server.
 - **KPI:** đặt chỉ tiêu điểm theo tháng, xem điểm thực hiện và tỷ lệ đạt.
 - **Report:** tổng hợp job đang làm, quá hạn, chờ duyệt và kết quả của thành viên.
 - **Notifications:** gửi DM, thông báo vào channel đã cấu hình và tự nhắc các mốc công việc.
-- **Database:** lưu lịch sử thay đổi, kiểm tra quyền và giữ hàng đợi thông báo để gửi lại khi lỗi.
 
 ## Setup
 
-- Node.js **24.22.1 trở lên**; project và CI chọn chính xác **24.22.1** qua `.node-version`.
-- MySQL **8.0.16 trở lên**, dùng InnoDB và `utf8mb4`; Docker mẫu sử dụng MySQL **8.4**.
+- Node.js **24.22.1 trở lên**
+- MySQL **8.0.16 trở lên**
 <!-- - Một Discord application có bot token và quyền quản lý server để cấu hình ban đầu. -->
 
 Các ví dụ dưới dùng `npm`. Trên PowerShell, dùng `npm.cmd` nếu gặp lỗi chính sách thực thi `npm.ps1`.
-
-Để nâng Node trên Windows, cài [Node.js 24.22.1 x64](https://nodejs.org/dist/v24.22.1/node-v24.22.1-x64.msi), mở lại terminal và kiểm tra `node --version`. Đổi `engines.node` hoặc `.node-version` chỉ cập nhật yêu cầu của project, không tự cài Node vào máy.
 
 ### 1. Install dependencies
 
@@ -74,8 +71,6 @@ ON job_bot.* TO 'job_bot'@'localhost';
 
 Bot chỉ dùng intent `Guilds`, không cần cấp Administrator hoặc bật Message Content/Server Members privileged intent. Thành viên cần quyền **Use Application Commands** tại channel sử dụng bot.
 
-Tạo role **Lead** và gán cho người quản lý. Để bot ping Lead, role cần cho phép mention hoặc bot có quyền mention phù hợp.
-
 ### 4. Configure environment
 
 Sao chép `.env.example` thành `.env`, sau đó điền thông tin kết nối. Nếu đã có `.env`, giữ lại cấu hình đang dùng.
@@ -120,7 +115,7 @@ Lead tạo job:
 Đổi ngày trong ví dụ sang thời điểm tương lai khi sử dụng. Ngày giờ luôn theo **giờ Việt Nam (UTC+7)**, định dạng `YYYY-MM-DD HH:mm`.
 
 1. Bot xác nhận riêng cho Lead và gửi lời mời **Nhận việc / Từ chối** qua DM cho người được giao ở lượt worker tiếp theo.
-2. Người nhận chọn một trong hai nút hoặc dùng `/job accept`, `/job decline`. Bot công khai trạng thái sau khi có quyết định.
+2. Người nhận chọn một trong hai lệnh hoặc dùng `/job accept`, `/job decline`. Bot công khai trạng thái sau khi có quyết định.
 3. Người nhận cập nhật tiến độ và nộp kết quả; Lead duyệt hoàn thành hoặc yêu cầu sửa.
 
 ```text
@@ -215,10 +210,10 @@ Nhập `/help` trong Discord để xem lệnh và mô tả theo nhóm. Discord s
 ## Notifications
 
 - **Sắp deadline:** nhắc một lần khi còn tối đa 24 giờ, theo từng deadline/người nhận.
-- **Quá hạn hoặc đến mốc cập nhật:**
-- **Chờ nhận trên 24 giờ:**
-- **Kết quả chờ duyệt trên 24 giờ:**
-- **Gửi lỗi:**
+- **Quá hạn hoặc đến mốc cập nhật**
+- **Chờ nhận trên 24 giờ**
+- **Kết quả chờ duyệt trên 24 giờ**
+- **Gửi lỗi**
 
 Bật nhận DM từ server để nhận lời mời và thông báo. `/settings show` giúp kiểm tra hàng đợi và DM thất bại; thành viên vẫn có thể dùng `/job list` khi DM bị chặn.
 <!-- 
