@@ -72,7 +72,7 @@ test("Service từ chối thành viên thường, Lead và tên role không đú
   for (const member of [
     actor,
     { ...actor, roleIds: [input.leadRoleId], roleNames: ["Lead"] },
-    { ...actor, roleNames: ["Tổ IT"] },
+    { ...actor, roleNames: [`${BOT_CONFIGURATION_ROLE} (role khác)`] },
     { ...actor, roleNames: [] },
   ]) {
     await assert.rejects(service.configure(member, input), UserError);
