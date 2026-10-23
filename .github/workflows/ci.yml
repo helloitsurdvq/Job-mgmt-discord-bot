@@ -142,7 +142,7 @@ jobs:
       cancel-in-progress: false
     env:
       DEPLOY_PATH: /opt/eishin-flash
-      SSH_HOST: 36.50.27.122
+      SSH_HOST: ${{ secrets.VPS_HOST }}
       SSH_USER: root
       SSH_PORT: ${{ secrets.VPS_PORT || '22' }}
 

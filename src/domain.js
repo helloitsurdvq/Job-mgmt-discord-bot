@@ -18,7 +18,7 @@ export function ensure(condition, message) {
   if (!condition) throw new UserError(message);
 }
 
-export const BOT_CONFIGURATION_ROLE = "You're going to Germany";
+export const BOT_CONFIGURATION_ROLE = "Tổ IT";
 
 export function authorizeBotConfiguration(actor) {
   ensure(
