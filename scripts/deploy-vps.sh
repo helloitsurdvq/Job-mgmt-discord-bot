@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 umask 077
 
-# Invoked over SSH after CI has uploaded the tested artifact and checksum.
 base=${1:?Deployment directory is required}
 run_key=${2:?Run identifier is required}
 sha=${3:?Commit SHA is required}
@@ -28,7 +27,6 @@ expected_node="v$(tr -d '\r\n' < .node-version)"
 [[ "$(node --version)" == "$expected_node" ]] || { echo "VPS needs Node.js $expected_node installed system-wide." >&2; exit 1; }
 npm ci --omit=dev --no-audit --no-fund
 ln -s "$base/shared/.env" "$release/.env"
-# Fail on invalid credentials before stopping the currently running bot.
 npm run db:check
 
 previous=$(readlink -f "$base/current" 2>/dev/null || true)
@@ -67,7 +65,6 @@ rollback() {
   trap - ERR INT TERM HUP
   set +e
   echo 'Deployment failed; attempting to restore the previous code release.' >&2
-  # Never start the old process until the new process has stopped.
   if ! systemctl stop "$service"; then
     echo 'Could not stop the service; manual recovery is required.' >&2
     exit "$status"

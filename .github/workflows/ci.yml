@@ -9,7 +9,6 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Do not interrupt a production deployment while it is changing releases.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -54,7 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # Database riêng cho mỗi run
     services:
       mysql:
         image: mysql:8.4
@@ -101,7 +99,7 @@ jobs:
         run: npm run test:integration
 
   package:
-    name: Create downloadable package
+    name: Create package
     needs: [unit, integration]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest

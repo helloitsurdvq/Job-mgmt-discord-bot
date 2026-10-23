@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Exercise real release/symlink operations with fake npm and systemd.
-# No Discord, MySQL, network connections or real services are used.
 script=$(cd "$(dirname "$0")/.." && pwd)/scripts/deploy-vps.sh
 test_root=$(mktemp -d /tmp/eishin-cd-test.XXXXXX)
 cleanup() {
@@ -45,7 +43,6 @@ cat > "$test_root/bin/journalctl" <<'MOCK'
 #!/usr/bin/env bash
 echo 'Đăng nhập thành công: test-bot'
 MOCK
-# Git Bash on Windows has no flock; serialization is provided by real flock in Linux CI.
 if ! command -v flock >/dev/null; then
   printf '#!/usr/bin/env bash\nexit 0\n' > "$test_root/bin/flock"
 fi
